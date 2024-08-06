@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tài Xỉu Nâng Cao</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #1a1a1a;
+            color: #fff;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-image: url('background.jpg');
+            background-size: cover;
+            background-position: center;
+        }
+        .game-container {
+            background-color: rgba(42, 42, 42, 0.9);
+            border-radius: 15px;
+            padding: 30px;
+            text-align: center;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+            max-width: 600px;
+            width: 100%;
+        }
+        .bet-area {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        .bet-option {
+            flex: 1;
+            padding: 15px;
+            margin: 0 10px;
+            background-color: #3a3a3a;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 18px;
+            font-weight: bold;
+        }
+        .bet-option:hover {
+            transform: scale(1.05);
+        }
+        .bet-option.active {
+            background-color: #4CAF50;
+            color: white;
+        }
+        .dice-area {
+            margin-bottom: 20px;
+            perspective: 1000px;
+        }
+        .dice {
+            display: inline-block;
+            width: 60px;
+            height: 60px;
+            margin: 0 10px;
+            background-size: cover;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+        }
+        .dice.rolling {
+            animation: roll 0.5s infinite linear;
+        }
+        @keyframes roll {
+            0% { transform: rotateX(0deg) rotateY(0deg); }
+            100% { transform: rotateX(360deg) rotateY(360deg); }
+        }
+        .bet-buttons {
+            margin-bottom: 20px;
+        }
+        button {
+            margin: 0 5px;
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #45a049;
+            transform: scale(1.05);
+        }
+        #balance {
+            font-size: 24px;
+            margin-bottom: 20px;
+            color: #FFD700;
+        }
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 20px;
+            font-size: 14px;
+        }
+        .result-history {
+            margin-top: 20px;
+            font-size: 14px;
+        }
+        .result-history span {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            margin: 0 2px;
+        }
+        .result-history .tai {
+            background-color: #FF4136;
+        }
+        .result-history .xiu {
+            background-color: #0074D9;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div id="balance">Số dư: 1,000,000</div>
+        <div id="timer">Thời gian còn lại: 30s</div>
+        <div id="nextSession">Phiên mới bắt đầu sau: 15s</div>
+        <div class="bet-area">
+            <div class="bet-option" id="tai">TÀI<br>0</div>
+            <div class="bet-option" id="xiu">XỈU<br>0</div>
+        </div>
+        <div class="dice-area">
+            <div class="dice" id="dice1"></div>
+            <div class="dice" id="dice2"></div>
+            <div class="dice" id="dice3"></div>
+        </div>
+        <div class="bet-buttons">
+            <button onclick="placeBet(1000)">1K</button>
+            <button onclick="placeBet(10000)">10K</button>
+            <button onclick="placeBet(50000)">50K</button>
+            <button onclick="placeBet(100000)">100K</button>
+            <button onclick="placeBet(500000)">500K</button>
+        </div>
+        <button id="rollButton" onclick="rollDice()">Đặt cược</button>
+        <div class="stats">
+            <div>Thắng: <span id="wins">0</span></div>
+            <div>Thua: <span id="losses">0</span></div>
+            <div>Tỉ lệ thắng: <span id="winRate">0%</span></div>
+        </div>
+        <div class="result-history" id="resultHistory"></div>
+    </div>
+
+    <script>
+        let balance = 1000000000;
+        let currentBet = 0;
+        let currentChoice = null;
+        let wins = 0;
+        let losses = 0;
+        let resultHistory = [];
+        let sessionTime = 60; // Thời gian mỗi phiên (giây)
+        let intervalBetweenSessions = 15; // Thời gian giữa các phiên (giây)
+        let currentTimer;
+        let isRolling = false;
+
+        const diceImages = [
+            'url("dice1.png")',
+            'url("dice2.png")',
+            'url("dice3.png")',
+            'url("dice4.png")',
+            'url("dice5.png")',
+            'url("dice6.png")'
+        ];
+
+        const sounds = {
+            roll: new Audio('dice_roll.mp3'),
+            win: new Audio('win.mp3'),
+            lose: new Audio('lose.mp3')
+        };
+
+        function updateBalance() {
+            document.getElementById('balance').innerText = `Số dư: ${balance.toLocaleString()}`;
+        }
+
+        function placeBet(amount) {
+            if (!isRolling && amount <= balance) {
+                currentBet += amount;
+                balance -= amount;
+                updateBalance();
+                document.getElementById(currentChoice).innerHTML = `${currentChoice.toUpperCase()}<br>${currentBet.toLocaleString()}`;
+            } else if (isRolling) {
+                alert('Không thể đặt cược khi xúc xắc đang quay!');
+            } else {
+                alert('Không đủ số dư!');
+            }
+        }
+
+        function selectBetOption(option) {
+            if (!isRolling) {
+                currentChoice = option;
+                document.getElementById('tai').classList.remove('active');
+                document.getElementById('xiu').classList.remove('active');
+                document.getElementById(option).classList.add('active');
+            } else {
+                alert('Không thể chọn khi xúc xắc đang quay!');
+            }
+        }
+
+        document.getElementById('tai').onclick = () => selectBetOption('tai');
+        document.getElementById('xiu').onclick = () => selectBetOption('xiu');
+
+        function rollDice() {
+            if (isRolling) return;
+            if (!currentChoice || currentBet === 0) {
+                alert('Vui lòng chọn Tài/Xỉu và đặt cược!');
+                return;
+            }
+
+            isRolling = true;
+            document.getElementById('rollButton').disabled = true;
+            sounds.roll.play();
+
+            const diceElements = [
+                document.getElementById('dice1'),
+                document.getElementById('dice2'),
+                document.getElementById('dice3')
+            ];
+
+            diceElements.forEach(dice => {
+                dice.classList.add('rolling');
+            });
+
+            setTimeout(showFinalResult, 2000);
+        }
+
+        function showFinalResult() {
+            const dice1Value = Math.floor(Math.random() * 6) + 1;
+            const dice2Value = Math.floor(Math.random() * 6) + 1;
+            const dice3Value = Math.floor(Math.random() * 6) + 1;
+            const total = dice1Value + dice2Value + dice3Value;
+
+            document.getElementById('dice1').style.backgroundImage = diceImages[dice1Value - 1];
+            document.getElementById('dice2').style.backgroundImage = diceImages[dice2Value - 1];
+            document.getElementById('dice3').style.backgroundImage = diceImages[dice3Value - 1];
+
+            document.getElementById('dice1').classList.remove('rolling');
+            document.getElementById('dice2').classList.remove('rolling');
+            document.getElementById('dice3').classList.remove('rolling');
+
+            const result = total >= 11 ? 'tai' : 'xiu';
+
+            if (result === currentChoice) {
+                balance += currentBet * 2;
+                wins++;
+                sounds.win.play();
+                alert(`Chúc mừng! Bạn đã thắng! Tổng điểm: ${total}`);
+            } else {
+                losses++;
+                sounds.lose.play();
+                alert(`Rất tiếc! Bạn đã thua. Tổng điểm: ${total}`);
+            }
+
+            updateBalance();
+            updateStats();
+            updateResultHistory(result);
+            resetBet();
+            isRolling = false;
+            document.getElementById('rollButton').disabled = false;
+        }
+
+        function resetBet() {
+            currentBet = 0;
+            currentChoice = null;
+            document.getElementById('tai').innerHTML = 'TÀI<br>0';
+            document.getElementById('xiu').innerHTML = 'XỈU<br>0';
+            document.getElementById('tai').classList.remove('active');
+            document.getElementById('xiu').classList.remove('active');
+        }
+
+        function updateStats() {
+            document.getElementById('wins').innerText = wins;
+            document.getElementById('losses').innerText = losses;
+            const totalGames = wins + losses;
+            const winRate = totalGames > 0 ? (wins / totalGames * 100).toFixed(2) : 0;
+            document.getElementById('winRate').innerText = `${winRate}%`;
+        }
+
+        function updateResultHistory(result) {
+            resultHistory.unshift(result);
+            if (resultHistory.length > 10) resultHistory.pop();
+            const historyElement = document.getElementById('resultHistory');
+            historyElement.innerHTML = resultHistory.map(r => `<span class="${r}"></span>`).join('');
+        }
+
+        function startSession() {
+            let timeLeft = sessionTime;
+            updateTimer(timeLeft);
+            currentTimer = setInterval(() => {
+                timeLeft--;
+                updateTimer(timeLeft);
+                if (timeLeft <= 0) {
+                    clearInterval(currentTimer);
+                    endSession();
+                }
+            }, 1000);
+        }
+
+        function endSession() {
+            if (!isRolling) {
+                rollDice();
+            }
+            startNextSessionCountdown();
+        }
+
+        function startNextSessionCountdown() {
+            let countdown = intervalBetweenSessions;
+            updateNextSessionTimer(countdown);
+            const nextSessionTimer = setInterval(() => {
+                countdown--;
+                updateNextSessionTimer(countdown);
+                if (countdown <= 0) {
+                    clearInterval(nextSessionTimer);
+                    startSession();
+                }
+            }, 1000);
+        }
+
+        function updateTimer(time) {
+            document.getElementById('timer').innerText = `Thời gian còn lại: ${time}s`;
+        }
+
+        function updateNextSessionTimer(time) {
+            document.getElementById('nextSession').innerText = `Phiên mới bắt đầu sau: ${time}s`;
+        }
+
+        updateBalance();
+        startSession();
+    </script>
+</body>
+</html>
